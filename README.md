@@ -12,6 +12,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
 
+permissions:
+  pull-requests: read
+  checks: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -29,6 +33,19 @@ Multiple keys:
           jira-keys: 'DOKTUZ,PROJ,TEAM'
 ```
 
+## Permissions
+
+This action requires the following permissions:
+
+```yaml
+permissions:
+  pull-requests: read
+  checks: write
+```
+
+- **`pull-requests: read`** — required to list PR commits via the GitHub API.
+- **`checks: write`** — required to publish a Check Run with the validation report. When a check fails, the rendered markdown report is visible directly via the **"Details"** link on the PR checks tab. If this permission is missing, the action still works but the inline report won't appear (a warning is logged instead).
+
 ## Inputs
 
 | Input | Required | Default | Description |
@@ -43,7 +60,7 @@ Multiple keys:
 - Matching is **case-insensitive** (`doktuz-123`, `DOKTUZ-123`, `Doktuz-123` all match)
 - **Merge commits** are automatically skipped
 - Only the **first line** of each commit message is checked
-- On failure, a **Markdown job summary** is posted with a remediation guide (amend, rebase, or squash instructions)
+- On failure, a **Markdown report** with a remediation guide is published as a **Check Run** (visible via the "Details" link on the PR) and as a **Job Summary** on the workflow run page
 - The GitHub API returns a maximum of 250 commits per PR
 
 ## Development

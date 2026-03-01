@@ -18,6 +18,7 @@ function makeMocks({
   const core = {
     info: jest.fn(),
     error: jest.fn(),
+    warning: jest.fn(),
     setFailed: jest.fn(),
     summary: { addRaw: jest.fn().mockReturnThis(), write: jest.fn() },
   };
@@ -27,7 +28,7 @@ function makeMocks({
       pull_request: {
         number: pullNumber,
         title: prTitle,
-        head: { ref: branch },
+        head: { ref: branch, sha: 'abc123def456' },
       },
     },
     repo: { owner: 'lanzark', repo: 'my-repo' },
@@ -35,7 +36,10 @@ function makeMocks({
 
   const github = {
     paginate: jest.fn().mockResolvedValue(commits),
-    rest: { pulls: { listCommits: jest.fn() } },
+    rest: {
+      pulls: { listCommits: jest.fn() },
+      checks: { create: jest.fn().mockResolvedValue({}) },
+    },
   };
 
   return { core, context, github };
@@ -533,6 +537,66 @@ describe('markdown summary', () => {
 
     const md = core.summary.addRaw.mock.calls[0][0];
     expect(md).toContain('fix \\| operator');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Check run (inline report on PR)
+// ---------------------------------------------------------------------------
+
+describe('check run report', () => {
+  test('creates a passing check run on success', async () => {
+    const { core, context, github } = makeMocks();
+    await validate({ github, context, core });
+
+    expect(github.rest.checks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: 'lanzark',
+        repo: 'my-repo',
+        name: 'JIRA Validation Report',
+        head_sha: 'abc123def456',
+        status: 'completed',
+        conclusion: 'success',
+        output: expect.objectContaining({
+          title: 'JIRA Validation Passed',
+        }),
+      })
+    );
+  });
+
+  test('creates a failing check run on failure', async () => {
+    const { core, context, github } = makeMocks({
+      branch: 'bad-branch',
+    });
+    await validate({ github, context, core });
+
+    expect(github.rest.checks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conclusion: 'failure',
+        output: expect.objectContaining({
+          title: 'JIRA Validation Failed',
+        }),
+      })
+    );
+  });
+
+  test('includes markdown summary in check run output', async () => {
+    const { core, context, github } = makeMocks();
+    await validate({ github, context, core });
+
+    const call = github.rest.checks.create.mock.calls[0][0];
+    expect(call.output.summary).toContain('JIRA Validation Passed');
+  });
+
+  test('warns but does not fail if checks.create throws', async () => {
+    const { core, context, github } = makeMocks();
+    github.rest.checks.create.mockRejectedValue(new Error('Forbidden'));
+    await validate({ github, context, core });
+
+    expect(core.warning).toHaveBeenCalledWith(
+      expect.stringContaining('checks: write')
+    );
+    expect(core.setFailed).not.toHaveBeenCalled();
   });
 });
 

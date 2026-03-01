@@ -120,6 +120,24 @@ module.exports = async ({ github, context, core }) => {
   });
   await core.summary.addRaw(md).write();
 
+  // --- Publish Check Run with inline report (visible via "Details" link on PR) ---
+  try {
+    await github.rest.checks.create({
+      owner,
+      repo,
+      name: 'JIRA Validation Report',
+      head_sha: pr.head.sha,
+      status: 'completed',
+      conclusion: failed ? 'failure' : 'success',
+      output: {
+        title: failed ? 'JIRA Validation Failed' : 'JIRA Validation Passed',
+        summary: md,
+      },
+    });
+  } catch (err) {
+    core.warning(`Could not create check run (needs "checks: write" permission): ${err.message}`);
+  }
+
   // --- Final status ---
   if (failed) {
     core.setFailed(`One or more JIRA validation checks failed. Expected pattern: ${pattern}`);
