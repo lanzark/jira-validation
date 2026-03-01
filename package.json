@@ -1,7 +1,6 @@
 {
   "name": "jira-validation",
-  "version": "1.0.0",
-  "private": true,
+  "version": "1.2.0",
   "description": "GitHub Action to validate JIRA ticket references in PRs",
   "scripts": {
     "test": "jest --verbose"
