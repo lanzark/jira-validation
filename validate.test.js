@@ -14,6 +14,8 @@ function makeMocks({
   process.env.SKIP_BRANCH_CHECK = skipBranch;
   process.env.SKIP_COMMIT_CHECK = skipCommit;
   process.env.SKIP_PR_TITLE_CHECK = skipPrTitle;
+  process.env.GITHUB_SERVER_URL = 'https://github.com';
+  process.env.GITHUB_RUN_ID = '12345';
 
   const core = {
     info: jest.fn(),
@@ -50,6 +52,8 @@ afterEach(() => {
   delete process.env.SKIP_BRANCH_CHECK;
   delete process.env.SKIP_COMMIT_CHECK;
   delete process.env.SKIP_PR_TITLE_CHECK;
+  delete process.env.GITHUB_SERVER_URL;
+  delete process.env.GITHUB_RUN_ID;
 });
 
 // ---------------------------------------------------------------------------
@@ -557,6 +561,8 @@ describe('check run report', () => {
         head_sha: 'abc123def456',
         status: 'completed',
         conclusion: 'success',
+        details_url: 'https://github.com/lanzark/my-repo/actions/runs/12345',
+        external_id: '12345',
         output: expect.objectContaining({
           title: 'JIRA Validation Passed',
         }),
@@ -586,6 +592,27 @@ describe('check run report', () => {
 
     const call = github.rest.checks.create.mock.calls[0][0];
     expect(call.output.summary).toContain('JIRA Validation Passed');
+  });
+
+  test('includes started_at and completed_at timestamps', async () => {
+    const { core, context, github } = makeMocks();
+    await validate({ github, context, core });
+
+    const call = github.rest.checks.create.mock.calls[0][0];
+    expect(call.started_at).toBeDefined();
+    expect(call.completed_at).toBeDefined();
+    expect(() => new Date(call.started_at)).not.toThrow();
+    expect(() => new Date(call.completed_at)).not.toThrow();
+  });
+
+  test('omits details_url and external_id when GITHUB_RUN_ID is not set', async () => {
+    const { core, context, github } = makeMocks();
+    delete process.env.GITHUB_RUN_ID;
+    await validate({ github, context, core });
+
+    const call = github.rest.checks.create.mock.calls[0][0];
+    expect(call.details_url).toBeUndefined();
+    expect(call.external_id).toBeUndefined();
   });
 
   test('warns but does not fail if checks.create throws', async () => {

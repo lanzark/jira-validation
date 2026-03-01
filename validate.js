@@ -121,6 +121,12 @@ module.exports = async ({ github, context, core }) => {
   await core.summary.addRaw(md).write();
 
   // --- Publish Check Run with inline report (visible via "Details" link on PR) ---
+  const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+  const runId = process.env.GITHUB_RUN_ID || '';
+  const detailsUrl = runId
+    ? `${serverUrl}/${owner}/${repo}/actions/runs/${runId}`
+    : undefined;
+
   try {
     await github.rest.checks.create({
       owner,
@@ -129,6 +135,10 @@ module.exports = async ({ github, context, core }) => {
       head_sha: pr.head.sha,
       status: 'completed',
       conclusion: failed ? 'failure' : 'success',
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      ...(detailsUrl && { details_url: detailsUrl }),
+      ...(runId && { external_id: runId }),
       output: {
         title: failed ? 'JIRA Validation Failed' : 'JIRA Validation Passed',
         summary: md,
